@@ -28,10 +28,10 @@ class ApplicationGenerator:
                 prompt = f"""
                 You are an expert application writer. Create a professional, tailored application letter for the following opportunity.
                 Opportunity Details:
-                - Title: {opportunity['title']}
-                - Description: {opportunity['description']}
-                - Category: {opportunity['category']}
-                - Target Audience: {opportunity['target_audience']}
+                - Title: {opportunity.get('title', 'Scholarship Opportunity')}
+                - Description: {opportunity.get('description', 'No description provided')}
+                - Category: {opportunity.get('category', 'General')}
+                - Target Audience: {opportunity.get('target_audience', 'the intended audience')}
                 Applicant Profile:
                 - Name: {profile.get('name', 'Applicant')}
                 - Education: {profile.get('education', 'Not provided')}
@@ -62,21 +62,22 @@ class ApplicationGenerator:
     def generate_basic_letter(self, profile, opportunity):
         name = profile.get('name', 'Applicant')
         date = datetime.now().strftime("%B %d, %Y")
+        target_audience = opportunity.get('target_audience', 'the intended audience')
         letter = f"""
         {name}
         {profile.get('email', '')}
         {profile.get('phone', '')}
         {date}
         Selection Committee
-        {opportunity['title']}
+        {opportunity.get('title', 'Scholarship Opportunity')}
         Dear Selection Committee,
-        I am writing to apply for the {opportunity['title']}. As a {profile.get('field_of_study', 'dedicated individual')}, 
-        I am excited about this opportunity to further my goals in {opportunity['category']}.
+        I am writing to apply for the {opportunity.get('title', 'Scholarship Opportunity')}. As a {profile.get('field_of_study', 'dedicated individual')}, 
+        I am excited about this opportunity to further my goals in {opportunity.get('category', 'General')}.
         My background includes {profile.get('education', 'relevant education')}. 
         I have developed skills in {profile.get('skills', 'various areas')} and have experience 
         in {profile.get('experience', 'relevant fields')}. My achievements include 
         {profile.get('achievements', 'consistent dedication to my goals')}.
-        I believe this opportunity aligns with my aspirations to contribute to {opportunity['target_audience']} 
+        I believe this opportunity aligns with my aspirations to contribute to {target_audience} 
         and make a positive impact. Thank you for considering my application. I look forward to the possibility 
         of contributing to your program.
         Sincerely,

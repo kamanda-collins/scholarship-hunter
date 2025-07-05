@@ -89,27 +89,6 @@ st.sidebar.info(f"📊 GPA Scale: {gpa_config['help']}")
 goal_options = ['student', 'entrepreneur', 'researcher', 'nonprofit', 'artist']
 st.session_state.user_goal = st.sidebar.selectbox("Select your goal", goal_options, index=goal_options.index(st.session_state.user_goal))
 
-# Enhanced API Key Input with Security Info
-with st.sidebar.expander("🔐 API Key Settings (Optional)", expanded=False):
-    st.success("✅ App works perfectly without an API key!")
-    st.info("Add your API key only for enhanced AI letter generation features.")
-    user_api_key = st.text_input("Your Gemini API Key (optional)", type="password", help="Get your free API key from https://makersuite.google.com/app/apikey")
-    
-    # Check if user has a saved key
-    if api_manager.verify_user_api_key(st.session_state.user_id, user_api_key) and user_api_key:
-        st.success("✅ Valid API key detected")
-    elif user_api_key:
-        st.info("🔄 New API key will be securely saved")
-
-api_key, mode = api_manager.get_api_key(st.session_state.user_id, user_api_key)
-
-usage_stats = api_manager.get_usage_stats()
-if mode == 'user':
-    st.sidebar.success("🚀 Using your personal API key - unlimited access!")
-elif mode == 'server':
-    st.sidebar.info(f"🆓 Free AI slots remaining: {usage_stats['remaining_slots']}/{usage_stats['total_users']}")
-elif mode == 'basic':
-    st.sidebar.warning("⚠️ Free AI slots are full. Provide your own API key for enhanced features.")
 
 # --- Sidebar: CV Upload & Profile ---
 st.sidebar.subheader("📄 Profile Setup")
@@ -236,8 +215,8 @@ else:
             st.sidebar.success("✅ Enhanced profile saved with GPA conversion!")
     
     # Link to detailed profile
-    if st.sidebar.button("📝 Complete Full Profile"):
-        st.session_state.show_detailed_profile = True
+    # Removed user button for completing full profile
+    st.session_state.show_detailed_profile = False
 
 # --- Sidebar: Custom Sites ---
 st.sidebar.subheader("Add Custom Websites")
@@ -461,36 +440,40 @@ if st.session_state.scraped_data:
         st.warning("👆 Please select an opportunity from the table above")
         selected_title = st.selectbox("Or select manually:", [opp['title'] for opp in st.session_state.scraped_data])
         selected_opp = next((opp for opp in st.session_state.scraped_data if opp['title'] == selected_title), None)
+    # --- Application Letter Form ---
+    letter = None
+    mode = 'server'  # Always use developer/server mode for AI features
     with st.form(f"application_questions_{st.session_state.user_id}"):
         motivation = st.text_area("Why are you interested in this opportunity?")
         goals = st.text_area("What are your goals related to this opportunity?")
         challenges = st.text_area("What challenges have you overcome that make you a strong candidate?")
-        if st.form_submit_button("Generate Application Letter"):
-            if selected_opp and st.session_state.user_profile:
-                user_answers = {
-                    'motivation': motivation,
-                    'goals': goals,
-                    'challenges': challenges
-                }
-                app_generator = ApplicationGenerator(api_manager, st.session_state.user_id)
-                with st.spinner("Generating application letter..."):
-                    letter = app_generator.generate_application_letter(
-                        st.session_state.user_profile,
-                        selected_opp,
-                        user_answers,
-                        api_key=api_key,
-                        mode=mode
-                    )
-                    st.subheader("Generated Application Letter")
-                    st.text_area("Application Letter", letter, height=400)
-                    st.download_button(
-                        label="Download Letter",
-                        data=letter,
-                        file_name=f"application_{selected_opp['title']}.txt",
-                        mime="text/plain"
-                    )
-            else:
-                st.error("Please complete your profile and select an opportunity.")
+        submitted = st.form_submit_button("Generate Application Letter")
+    if submitted:
+        if selected_opp and st.session_state.user_profile:
+            user_answers = {
+                'motivation': motivation,
+                'goals': goals,
+                'challenges': challenges
+            }
+            app_generator = ApplicationGenerator(api_manager, st.session_state.user_id)
+            with st.spinner("Generating application letter..."):
+                letter = app_generator.generate_application_letter(
+                    st.session_state.user_profile,
+                    selected_opp,
+                    user_answers,
+                    mode=mode
+                )
+        else:
+            st.error("Please complete your profile and select an opportunity.")
+    if letter:
+        st.subheader("Generated Application Letter")
+        st.text_area("Application Letter", letter, height=400)
+        st.download_button(
+            label="Download Letter",
+            data=letter,
+            file_name=f"application_{selected_opp['title']}.txt",
+            mime="text/plain"
+        )
 
 # --- Detailed Profile Section ---
 if st.session_state.get('show_detailed_profile', False):
