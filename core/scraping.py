@@ -7,6 +7,9 @@ import streamlit as st
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urljoin
 import hashlib
+import threading
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from .config import (
     USER_AGENTS, MIN_DELAY, MAX_DELAY, RETRY_DELAY, 
     BROWSER_HEADERS, REFERRERS, MAX_REQUESTS_PER_DOMAIN, DOMAIN_COOLDOWN
@@ -453,7 +456,7 @@ class EnhancedScholarshipScraper:
             return []
 
     def search_by_goal(self, goal="student", keywords=None, custom_sites=None, user_id=None, country=None):
-        """Fast search using intelligent caching with optional live scraping"""
+        """Fast search using intelligent caching with background database updates"""
         
         # Step 1: Get cached scholarships immediately (fast response)
         st.info(f"🚀 Searching cached scholarships for {goal} opportunities{f' in {country}' if country else ''}...")
@@ -482,9 +485,12 @@ class EnhancedScholarshipScraper:
         
         st.success(f"✅ Found {len(formatted_opportunities)} scholarships from cache (instant results)")
         
-        # Step 2: Optional background refresh (if enabled)
-        if len(formatted_opportunities) < 10:  # Only scrape if cache is sparse
-            st.info("🔄 Cache has limited results. Performing targeted live scraping...")
+        # Step 2: Start background database update (non-blocking)
+        self._start_background_update(goal, keywords, country, user_id)
+        
+        # Step 3: Optional foreground refresh if cache is very sparse
+        if len(formatted_opportunities) < 5:  # Only if very few results
+            st.info("🔄 Limited cached results. Performing quick targeted search...")
             
             # Get fresh scholarships from a few reliable sources
             fresh_opportunities = self._perform_limited_scraping(goal, keywords, country)
@@ -498,251 +504,195 @@ class EnhancedScholarshipScraper:
                     'deadline': opp['deadline'],
                     'category': opp['category'],
                     'source': opp['source'],
-                    'country': country or 'International',
-                    'keywords': ','.join(keywords) if keywords else '',
                     'goal_type': goal,
-                    'priority': 2 if country else 1
+                    'country': country or 'International',
+                    'priority': 3  # Medium priority for new finds
                 } for opp in fresh_opportunities])
                 
-                formatted_opportunities.extend(fresh_opportunities)
-                st.success(f"✅ Added {len(fresh_opportunities)} fresh scholarships to results")
+                # Add to current results
+                formatted_opportunities.extend(fresh_opportunities[:5])  # Limit to avoid overwhelming
+                st.success(f"🆕 Added {len(fresh_opportunities)} fresh opportunities")
         
-        # Remove duplicates and sort by priority
-        seen_titles = set()
-        unique_opportunities = []
-        for opp in formatted_opportunities:
-            title_key = opp['title'].lower().strip()
-            if title_key not in seen_titles:
-                seen_titles.add(title_key)
-                unique_opportunities.append(opp)
-        
-        # Sort by priority (country-specific first)
-        unique_opportunities.sort(key=lambda x: (
-            -x.get('priority', 1),  # Higher priority first
-            x['title']  # Then alphabetical
-        ))
-        
-        return unique_opportunities[:50]  # Return top 50 results
+        return formatted_opportunities
 
-    def mimic_human_behavior(self):
-        """Add random human-like behaviors to avoid bot detection"""
-        # Occasionally clear cookies (like a human might)
-        if random.random() < 0.1:  # 10% chance
-            self.session.cookies.clear()
-            st.info("🍪 Cleared cookies (human behavior)")
+    def _start_background_update(self, goal, keywords, country, user_id):
+        """Start background scraping to update database (non-blocking)"""
         
-        # Randomly update headers
-        if random.random() < 0.3:  # 30% chance
-            self.update_session_headers()
-            st.info("🔄 Updated browser headers")
-        
-        # Simulate reading time
-        if random.random() < 0.2:  # 20% chance
-            read_time = random.uniform(1, 3)
-            st.info(f"📖 Simulating reading time: {read_time:.1f}s")
-            time.sleep(read_time)
-
-    def update_session_headers(self):
-        """Update session headers with realistic browser behavior"""
-        # Use the predefined browser headers and add random referrer
-        referrer = random.choice(REFERRERS)
-        
-        self.session.headers.update({
-            'User-Agent': self.current_user_agent,
-            'Referer': referrer,
-            **BROWSER_HEADERS  # Unpack the browser headers dictionary
-        })
-
-    def adaptive_retry_strategy(self, response_code, attempt):
-        """Adaptive retry strategy based on response codes"""
-        if response_code == 403:
-            # Forbidden - likely bot detection
-            self.rotate_user_agent()
-            return random.uniform(10, 20)  # Long wait
-        elif response_code == 429:
-            # Rate limited
-            return 15 + (attempt * 5)  # Exponential backoff
-        elif response_code == 503:
-            # Service unavailable
-            return random.uniform(5, 15)
-        else:
-            # Other errors
-            return random.uniform(2, 8)
-
-    def intelligent_delay(self, base_delay=None):
-        """Enhanced intelligent delay with human-like patterns"""
-        if base_delay is None:
-            base_delay = random.uniform(MIN_DELAY, MAX_DELAY)
-        
-        # Increase delay based on recent activity patterns
-        total_recent_requests = sum(1 for t in self.last_request_time.values() 
-                                  if datetime.now() - t < timedelta(minutes=5))
-        
-        # Progressive delay scaling
-        if total_recent_requests > 25:
-            base_delay *= 2.5  # Much longer delay for heavy activity
-            st.info("🐌 Heavy activity detected - using longer delays")
-        elif total_recent_requests > 15:
-            base_delay *= 1.8  # Moderate scaling
-            st.info("⏱️ Moderate activity - adjusting delays")
-        elif total_recent_requests > 8:
-            base_delay *= 1.3  # Light scaling
-        
-        # Add human-like variation patterns
-        if random.random() < 0.1:  # 10% chance for a "thinking" pause
-            thinking_delay = random.uniform(2, 8)
-            st.info(f"🤔 Taking a moment to think... ({thinking_delay:.1f}s)")
-            time.sleep(thinking_delay)
-        
-        # Add time-of-day awareness (simulate human browsing patterns)
-        current_hour = datetime.now().hour
-        if 9 <= current_hour <= 17:  # Business hours - faster browsing
-            base_delay *= 0.8
-        elif 22 <= current_hour or current_hour <= 6:  # Late night/early morning - slower
-            base_delay *= 1.4
+        # Check if background update is needed (avoid too frequent updates)
+        if self._should_run_background_update(country):
             
-        # Ensure minimum human-like delay
-        base_delay = max(base_delay, 0.5)
-        
-        time.sleep(base_delay)
-        return base_delay
-
-    def get_country_specific_sites(self, country):
-        """Get scholarship sites specific to a country"""
-        country_sites = self.country_scholarship_sites.get(country, [])
-        international_sites = self.country_scholarship_sites.get('International', [])
-        
-        # Combine country-specific and international sites
-        all_sites = country_sites + international_sites[:3]  # Limit international sites
-        return all_sites
-
-    def remove_duplicate_opportunities(self, opportunities):
-        """Remove duplicate opportunities based on title similarity"""
-        if not opportunities:
-            return []
-        
-        unique_opportunities = []
-        seen_titles = set()
-        
-        for opp in opportunities:
-            title = opp['title'].lower().strip()
-            # Create a simplified version of the title for comparison
-            simplified_title = re.sub(r'[^\w\s]', '', title)
-            simplified_title = ' '.join(simplified_title.split())
+            # Show user that background update is happening
+            with st.container():
+                st.info("🔄 Background database update started - finding new scholarships...")
+                
+            # Start background thread
+            def background_update():
+                try:
+                    self._perform_background_scraping(goal, keywords, country)
+                except Exception as e:
+                    print(f"Background update error: {e}")  # Log error but don't break UI
             
-            # Check if we've seen a very similar title
-            is_duplicate = False
-            for seen_title in seen_titles:
-                # Calculate similarity (simple approach)
-                if len(simplified_title) > 10 and len(seen_title) > 10:
-                    if simplified_title in seen_title or seen_title in simplified_title:
-                        is_duplicate = True
-                        break
-                elif simplified_title == seen_title:
-                    is_duplicate = True
-                    break
+            # Run in background thread
+            thread = threading.Thread(target=background_update, daemon=True)
+            thread.start()
             
-            if not is_duplicate:
-                unique_opportunities.append(opp)
-                seen_titles.add(simplified_title)
+            # Update last background run time
+            self._update_background_timestamp(country)
+    
+    def _should_run_background_update(self, country):
+        """Check if background update should run based on timing and cache freshness"""
         
-        return unique_opportunities
-
-    def _perform_limited_scraping(self, goal, keywords, country, max_sites=3):
-        """Perform limited scraping from most reliable sources"""
-        opportunities = []
+        # Check cache metadata for last update time
+        cache_age = self.cache.get_cache_age(country)
         
-        # Select only the most reliable sites for quick scraping
-        reliable_sites = [
-            "https://www.scholarships.com/",
-            "https://www.fastweb.com/",
-            "https://www.petersons.com/",
+        # Run background update if:
+        # 1. Cache is older than 6 hours, OR
+        # 2. Cache has very few country-specific results, OR  
+        # 3. This is the first search of the day
+        
+        if cache_age > 6:  # Hours
+            return True
+        
+        if country:
+            country_count = self.cache.get_scholarship_count_by_country(country)
+            if country_count < 3:  # Very few country-specific results
+                return True
+        
+        return False
+    
+    def _perform_background_scraping(self, goal, keywords, country):
+        """Perform comprehensive background scraping to update database"""
+        
+        print(f"🔄 Starting background scraping for {goal} in {country}")
+        
+        # Target sites for background scraping (prioritize reliable sources)
+        target_sites = []
+        
+        # Add country-specific sites
+        if country and country in self.country_scholarship_sites:
+            target_sites.extend(self.country_scholarship_sites[country][:3])  # Top 3 for this country
+        
+        # Add some international sites
+        international_sites = [
+            'https://www.scholars4dev.com/',
+            'https://www.opportunitiesforafricans.com/',
+            'https://www.afterschoolafrica.com/'
         ]
+        target_sites.extend(international_sites[:2])
         
-        # Add country-specific sites if available
-        if country and hasattr(self, 'country_scholarship_sites'):
-            country_sites = self.country_scholarship_sites.get(country, [])[:2]  # Top 2 country sites
-            reliable_sites = country_sites + reliable_sites
+        # Scrape and update cache
+        new_scholarships = []
         
-        # Limit to max_sites for speed
-        sites_to_try = reliable_sites[:max_sites]
-        
-        for i, site in enumerate(sites_to_try):
+        for site in target_sites:
             try:
-                # Quick check if we should scrape this source
-                if not self.cache.should_scrape_source(site, max_age_hours=6):  # 6 hour cache
-                    continue
+                print(f"📡 Background scraping: {site}")
                 
-                st.info(f"🔍 Quick scraping: {site} ({i+1}/{len(sites_to_try)})")
+                # Use enhanced scraping with anti-bot measures
+                site_scholarships = self._scrape_single_site_enhanced(site, goal, keywords)
                 
-                # Perform quick scraping with shorter timeouts
-                site_opportunities = self._scrape_site_quick(site, keywords)
+                if site_scholarships:
+                    new_scholarships.extend(site_scholarships)
+                    print(f"✅ Found {len(site_scholarships)} scholarships from {site}")
                 
-                if site_opportunities:
-                    opportunities.extend(site_opportunities[:5])  # Max 5 per site
-                    self.cache.update_cache_metadata(site, success=True)
-                else:
-                    self.cache.update_cache_metadata(site, success=False)
-                
-                # Quick delay between sites
-                time.sleep(random.uniform(1, 3))
+                # Respectful delay between sites
+                time.sleep(random.uniform(2, 5))
                 
             except Exception as e:
-                st.warning(f"⚠️ Quick scraping failed for {site}: {str(e)[:50]}")
-                self.cache.update_cache_metadata(site, success=False)
+                print(f"⚠️ Background scraping failed for {site}: {e}")
                 continue
         
-        return opportunities[:10]  # Return max 10 fresh results
-    
-    def _scrape_site_quick(self, url, keywords):
-        """Quick scraping with minimal processing"""
-        try:
-            # Very short timeout for quick results
-            response = self.session.get(
-                url,
-                headers=self._get_stealth_headers(),
-                timeout=10,  # Short timeout
-                allow_redirects=True
-            )
+        # Add new scholarships to cache
+        if new_scholarships:
+            formatted_scholarships = [{
+                'title': sch['title'],
+                'description': sch['description'],
+                'amount': sch['amount'],
+                'deadline': sch['deadline'],
+                'category': sch['category'],
+                'source': sch['source'],
+                'goal_type': goal,
+                'country': country or 'International',
+                'priority': 2  # Higher priority for background finds
+            } for sch in new_scholarships]
             
-            if response.status_code != 200:
+            self.cache.add_scholarships(formatted_scholarships)
+            print(f"🎉 Background update complete: {len(new_scholarships)} new scholarships added")
+        
+        # Clean up old/expired scholarships
+        self.cache.cleanup_expired_scholarships()
+        print("🧹 Cleaned up expired scholarships")
+
+    def _update_background_timestamp(self, country):
+        """Update timestamp for last background update"""
+        # Store in session state or cache metadata
+        timestamp_key = f"bg_update_{country or 'global'}"
+        if not hasattr(self, '_background_timestamps'):
+            self._background_timestamps = {}
+        self._background_timestamps[timestamp_key] = datetime.now()
+
+    def _scrape_single_site_enhanced(self, site_url, goal, keywords):
+        """Enhanced single site scraping with better error handling"""
+        try:
+            # Apply intelligent delays and anti-bot measures
+            self._apply_intelligent_delay()
+            self._rotate_user_agent_if_needed()
+            
+            # Make request with full anti-bot protection
+            response = self._make_protected_request(site_url)
+            
+            if not response or response.status_code != 200:
                 return []
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Quick and dirty scholarship extraction
-            opportunities = []
+            # Extract scholarships using existing logic
+            scholarships = self._extract_scholarships_from_content(soup, site_url)
             
-            # Look for common scholarship patterns
-            scholarship_elements = (
-                soup.find_all(['div', 'article', 'section'], class_=re.compile(r'scholarship|opportunity|grant', re.I))[:5] +
-                soup.find_all(['h2', 'h3', 'h4'], string=re.compile(r'scholarship|grant|award', re.I))[:5]
-            )
-            
-            for elem in scholarship_elements[:5]:  # Max 5 per site for speed
-                try:
-                    title = self._extract_text(elem, ['h1', 'h2', 'h3', 'h4', 'title']) or "Scholarship Opportunity"
-                    description = self._extract_text(elem, ['p', 'div', 'span']) or "Check website for details"
-                    
-                    # Basic filtering
-                    if keywords:
-                        text_to_check = (title + " " + description).lower()
-                        if not any(keyword.lower() in text_to_check for keyword in keywords):
-                            continue
-                    
-                    opportunities.append({
-                        'title': title[:100],  # Truncate for consistency
-                        'description': description[:200],
-                        'amount': 'Check website',
-                        'deadline': 'Check website',
-                        'category': 'General',
-                        'source': url
+            # Filter and format results
+            filtered_scholarships = []
+            for scholarship in scholarships:
+                # Basic filtering based on goal and keywords
+                if self._matches_criteria(scholarship, goal, keywords):
+                    filtered_scholarships.append({
+                        'title': scholarship.get('title', 'Untitled Scholarship'),
+                        'description': scholarship.get('description', 'No description available'),
+                        'amount': scholarship.get('amount', 'Amount not specified'),
+                        'deadline': scholarship.get('deadline', 'Check website'),
+                        'category': scholarship.get('category', goal.title()),
+                        'source': site_url
                     })
-                    
-                except Exception:
-                    continue
             
-            return opportunities
+            return filtered_scholarships[:5]  # Limit to avoid overwhelming
             
-        except Exception:
+        except Exception as e:
+            print(f"Enhanced scraping error for {site_url}: {e}")
             return []
+
+    def _matches_criteria(self, scholarship, goal, keywords):
+        """Check if scholarship matches search criteria"""
+        if not scholarship:
+            return False
+        
+        # Check goal relevance
+        text_to_check = f"{scholarship.get('title', '')} {scholarship.get('description', '')}".lower()
+        
+        # Goal-specific keywords
+        goal_keywords = {
+            'student': ['student', 'undergraduate', 'graduate', 'academic', 'university', 'college'],
+            'entrepreneur': ['entrepreneur', 'business', 'startup', 'innovation', 'enterprise'],
+            'researcher': ['research', 'phd', 'postdoc', 'academic', 'scholar', 'fellowship'],
+            'artist': ['artist', 'creative', 'arts', 'cultural', 'music', 'design'],
+            'nonprofit': ['nonprofit', 'community', 'social', 'development', 'humanitarian']
+        }
+        
+        # Check if text contains goal-relevant keywords
+        goal_match = any(keyword in text_to_check for keyword in goal_keywords.get(goal, []))
+        
+        # Check user-provided keywords
+        keyword_match = True
+        if keywords:
+            keyword_match = any(keyword.lower() in text_to_check for keyword in keywords)
+        
+        return goal_match or keyword_match
+
+    # ...existing code...

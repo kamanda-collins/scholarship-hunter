@@ -315,6 +315,9 @@ if search_clicked:
         
         if opportunities:
             st.success(f"🎉 Found {len(opportunities)} scholarships instantly from database!")
+            # Show background update status
+            if len(opportunities) >= 5:
+                st.info("🔄 Database is being updated in background with fresh scholarships")
         else:
             st.warning("⚠️ No scholarships found. Try different keywords or check back later.")
 if st.session_state.scraped_data:

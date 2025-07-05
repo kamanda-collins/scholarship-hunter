@@ -365,6 +365,53 @@ class ScholarshipCache:
         conn.close()
         return count
 
+    def get_cache_age(self, country: str = None) -> float:
+        """Get age of cache in hours for a specific country or overall"""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        
+        if country:
+            # Get newest entry for this country
+            cursor.execute("""
+                SELECT MAX(created_at) FROM scholarships 
+                WHERE is_active = 1 AND (
+                    LOWER(country) LIKE ? OR 
+                    LOWER(title) LIKE ? OR 
+                    LOWER(source) LIKE ?
+                )
+            """, (f'%{country.lower()}%', f'%{country.lower()}%', f'%{country.lower()}%'))
+        else:
+            cursor.execute("SELECT MAX(created_at) FROM scholarships WHERE is_active = 1")
+        
+        result = cursor.fetchone()[0]
+        conn.close()
+        
+        if result:
+            # Parse timestamp and calculate age in hours
+            last_update = datetime.strptime(result, '%Y-%m-%d %H:%M:%S')
+            age_hours = (datetime.now() - last_update).total_seconds() / 3600
+            return age_hours
+        
+        return 24  # Return 24 hours if no data (triggers update)
+
+    def cleanup_expired_scholarships(self, days_old: int = 90):
+        """Remove scholarships older than specified days"""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        
+        cutoff_date = datetime.now() - timedelta(days=days_old)
+        cursor.execute("""
+            UPDATE scholarships 
+            SET is_active = 0 
+            WHERE created_at < ? AND is_active = 1
+        """, (cutoff_date.strftime('%Y-%m-%d %H:%M:%S'),))
+        
+        deleted_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        return deleted_count
+
     def update_cache_metadata(self, source_url: str, success: bool):
         """Update cache metadata for a source"""
         conn = sqlite3.connect(self.db_file)
