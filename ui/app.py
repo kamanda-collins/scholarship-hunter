@@ -90,8 +90,9 @@ goal_options = ['student', 'entrepreneur', 'researcher', 'nonprofit', 'artist']
 st.session_state.user_goal = st.sidebar.selectbox("Select your goal", goal_options, index=goal_options.index(st.session_state.user_goal))
 
 # Enhanced API Key Input with Security Info
-with st.sidebar.expander("🔐 API Key Settings", expanded=False):
-    st.info("Your API key is securely stored and hashed. We never store your key in plain text.")
+with st.sidebar.expander("🔐 API Key Settings (Optional)", expanded=False):
+    st.success("✅ App works perfectly without an API key!")
+    st.info("Add your API key only for enhanced AI letter generation features.")
     user_api_key = st.text_input("Your Gemini API Key (optional)", type="password", help="Get your free API key from https://makersuite.google.com/app/apikey")
     
     # Check if user has a saved key
