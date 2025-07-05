@@ -630,69 +630,94 @@ class EnhancedScholarshipScraper:
             self._background_timestamps = {}
         self._background_timestamps[timestamp_key] = datetime.now()
 
-    def _scrape_single_site_enhanced(self, site_url, goal, keywords):
-        """Enhanced single site scraping with better error handling"""
+    def _perform_limited_scraping(self, goal, keywords, country):
+        """Perform limited scraping for immediate results"""
         try:
-            # Apply intelligent delays and anti-bot measures
-            self._apply_intelligent_delay()
-            self._rotate_user_agent_if_needed()
+            # Quick scrape from 1-2 reliable sources
+            target_sites = []
             
-            # Make request with full anti-bot protection
-            response = self._make_protected_request(site_url)
+            if country and country in self.country_scholarship_sites:
+                target_sites.append(self.country_scholarship_sites[country][0])  # First reliable site
             
-            if not response or response.status_code != 200:
-                return []
+            # Add one international source
+            target_sites.append('https://www.scholars4dev.com/')
             
-            soup = BeautifulSoup(response.content, 'html.parser')
+            results = []
+            for site in target_sites[:2]:  # Limit to 2 sites for speed
+                try:
+                    site_results = self._scrape_single_site_enhanced(site, goal, keywords)
+                    results.extend(site_results[:3])  # Max 3 per site
+                except:
+                    continue
             
-            # Extract scholarships using existing logic
-            scholarships = self._extract_scholarships_from_content(soup, site_url)
-            
-            # Filter and format results
-            filtered_scholarships = []
-            for scholarship in scholarships:
-                # Basic filtering based on goal and keywords
-                if self._matches_criteria(scholarship, goal, keywords):
-                    filtered_scholarships.append({
-                        'title': scholarship.get('title', 'Untitled Scholarship'),
-                        'description': scholarship.get('description', 'No description available'),
-                        'amount': scholarship.get('amount', 'Amount not specified'),
-                        'deadline': scholarship.get('deadline', 'Check website'),
-                        'category': scholarship.get('category', goal.title()),
-                        'source': site_url
-                    })
-            
-            return filtered_scholarships[:5]  # Limit to avoid overwhelming
-            
-        except Exception as e:
-            print(f"Enhanced scraping error for {site_url}: {e}")
+            return results[:5]  # Max 5 total
+        except:
             return []
 
-    def _matches_criteria(self, scholarship, goal, keywords):
-        """Check if scholarship matches search criteria"""
-        if not scholarship:
-            return False
-        
-        # Check goal relevance
-        text_to_check = f"{scholarship.get('title', '')} {scholarship.get('description', '')}".lower()
-        
-        # Goal-specific keywords
-        goal_keywords = {
-            'student': ['student', 'undergraduate', 'graduate', 'academic', 'university', 'college'],
-            'entrepreneur': ['entrepreneur', 'business', 'startup', 'innovation', 'enterprise'],
-            'researcher': ['research', 'phd', 'postdoc', 'academic', 'scholar', 'fellowship'],
-            'artist': ['artist', 'creative', 'arts', 'cultural', 'music', 'design'],
-            'nonprofit': ['nonprofit', 'community', 'social', 'development', 'humanitarian']
-        }
-        
-        # Check if text contains goal-relevant keywords
-        goal_match = any(keyword in text_to_check for keyword in goal_keywords.get(goal, []))
-        
-        # Check user-provided keywords
-        keyword_match = True
-        if keywords:
-            keyword_match = any(keyword.lower() in text_to_check for keyword in keywords)
-        
-        return goal_match or keyword_match
+    def _apply_intelligent_delay(self):
+        """Apply intelligent delays between requests"""
+        # Random delay between 1-3 seconds
+        delay = random.uniform(1.0, 3.0)
+        time.sleep(delay)
 
-    # ...existing code...
+    def _rotate_user_agent_if_needed(self):
+        """Rotate user agent if needed"""
+        if hasattr(self, 'session_persistence'):
+            self.session_persistence['user_agent_rotations'] += 1
+            if self.session_persistence['user_agent_rotations'] % 10 == 0:
+                self.current_user_agent = random.choice(USER_AGENTS)
+                self.update_session_headers()
+
+    def _make_protected_request(self, url):
+        """Make a protected request with anti-bot measures"""
+        try:
+            response = self.session.get(url, timeout=10)
+            return response
+        except:
+            return None
+
+    def _extract_scholarships_from_content(self, soup, source_url):
+        """Extract scholarships from webpage content"""
+        scholarships = []
+        
+        # Look for common scholarship patterns
+        scholarship_selectors = [
+            'div[class*="scholarship"]',
+            'div[class*="opportunity"]', 
+            'article',
+            'div[class*="post"]'
+        ]
+        
+        for selector in scholarship_selectors:
+            elements = soup.select(selector)
+            for element in elements[:5]:  # Limit results
+                title_elem = element.find(['h1', 'h2', 'h3', 'h4'])
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    description = element.get_text(strip=True)[:200]
+                    
+                    scholarships.append({
+                        'title': title,
+                        'description': description,
+                        'amount': 'Check website',
+                        'deadline': 'Check website',
+                        'category': 'General',
+                        'source': source_url
+                    })
+            
+            if scholarships:  # If we found some, stop looking
+                break
+        
+        return scholarships
+
+    def update_session_headers(self):
+        """Update session headers with realistic browser simulation"""
+        self.session.headers.update({
+            'User-Agent': self.current_user_agent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0'
+        })
