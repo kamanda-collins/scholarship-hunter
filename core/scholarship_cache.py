@@ -471,3 +471,73 @@ class ScholarshipCache:
             return age_hours >= max_age_hours
         except:
             return True
+    
+    def get_total_scholarship_count(self):
+        """Get total number of active scholarships in cache"""
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM scholarships WHERE is_active = 1")
+            count = cursor.fetchone()[0]
+            conn.close()
+            return count
+        except Exception as e:
+            print(f"Error getting total scholarship count: {e}")
+            return 0
+    
+    def remove_duplicate_scholarships(self):
+        """Remove duplicate scholarships based on title similarity"""
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            
+            # Find duplicates based on similar titles (first 50 characters)
+            cursor.execute('''
+                DELETE FROM scholarships 
+                WHERE id NOT IN (
+                    SELECT MIN(id) 
+                    FROM scholarships 
+                    WHERE is_active = 1
+                    GROUP BY LOWER(SUBSTR(title, 1, 50))
+                )
+            ''')
+            
+            removed_count = cursor.rowcount
+            conn.commit()
+            conn.close()
+            
+            if removed_count > 0:
+                print(f"🧹 Removed {removed_count} duplicate scholarships")
+            
+            return removed_count
+            
+        except Exception as e:
+            print(f"Error removing duplicates: {e}")
+            return 0
+    
+    def cleanup_expired_scholarships(self, days_old=30):
+        """Enhanced cleanup with configurable age threshold"""
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            
+            # Remove scholarships older than specified days
+            cutoff_date = datetime.now() - timedelta(days=days_old)
+            
+            cursor.execute('''
+                DELETE FROM scholarships 
+                WHERE created_at < ? OR last_verified < ?
+            ''', (cutoff_date, cutoff_date))
+            
+            removed_count = cursor.rowcount
+            conn.commit()
+            conn.close()
+            
+            if removed_count > 0:
+                print(f"🧹 Removed {removed_count} expired scholarships (older than {days_old} days)")
+            
+            return removed_count
+            
+        except Exception as e:
+            print(f"Error cleaning up expired scholarships: {e}")
+            return 0

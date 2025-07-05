@@ -545,47 +545,64 @@ class EnhancedScholarshipScraper:
         # Check cache metadata for last update time
         cache_age = self.cache.get_cache_age(country)
         
+        # ENHANCED: More aggressive background updating
         # Run background update if:
-        # 1. Cache is older than 6 hours, OR
+        # 1. Cache is older than 3 hours (reduced from 6), OR
         # 2. Cache has very few country-specific results, OR  
-        # 3. This is the first search of the day
+        # 3. This is the first search of the day, OR
+        # 4. User has added custom sites recently
         
-        if cache_age > 6:  # Hours
+        if cache_age > 3:  # Hours - MORE AGGRESSIVE (was 6)
             return True
         
         if country:
             country_count = self.cache.get_scholarship_count_by_country(country)
-            if country_count < 3:  # Very few country-specific results
+            if country_count < 5:  # ENHANCED: Need at least 5 country-specific results (was 3)
                 return True
+        
+        # ENHANCED: Always run if very few total scholarships
+        total_count = self.cache.get_total_scholarship_count()
+        if total_count < 20:  # NEW: Ensure minimum scholarship pool
+            return True
         
         return False
     
     def _perform_background_scraping(self, goal, keywords, country):
-        """Perform comprehensive background scraping to update database"""
+        """ENHANCED: Perform comprehensive background scraping to update database"""
         
-        print(f"🔄 Starting background scraping for {goal} in {country}")
+        print(f"🔄 Starting ENHANCED background scraping for {goal} in {country}")
         
-        # Target sites for background scraping (prioritize reliable sources)
+        # ENHANCED: More comprehensive target sites
         target_sites = []
         
-        # Add country-specific sites
+        # Add MORE country-specific sites (increased from 3 to 5)
         if country and country in self.country_scholarship_sites:
-            target_sites.extend(self.country_scholarship_sites[country][:3])  # Top 3 for this country
+            target_sites.extend(self.country_scholarship_sites[country][:5])  # Top 5 for this country
         
-        # Add some international sites
+        # Add MORE international sites (increased coverage)
         international_sites = [
             'https://www.scholars4dev.com/',
             'https://www.opportunitiesforafricans.com/',
-            'https://www.afterschoolafrica.com/'
+            'https://www.afterschoolafrica.com/',
+            'https://www.scholarshipportal.com/',
+            'https://www.studyportals.com/',
+            'https://www.scholarships.com/'
         ]
-        target_sites.extend(international_sites[:2])
+        target_sites.extend(international_sites[:4])  # Add 4 international sites
+        
+        # ENHANCED: Scrape custom user sites too
+        try:
+            custom_sites = self.db_manager.get_popular_custom_sites(limit=3)
+            target_sites.extend([site['url'] for site in custom_sites])
+        except Exception:
+            pass
         
         # Scrape and update cache
         new_scholarships = []
         
-        for site in target_sites:
+        for i, site in enumerate(target_sites[:8]):  # ENHANCED: Up to 8 sites (was 5)
             try:
-                print(f"📡 Background scraping: {site}")
+                print(f"📡 Background scraping ({i+1}/{min(len(target_sites), 8)}): {site}")
                 
                 # Use enhanced scraping with anti-bot measures
                 site_scholarships = self._scrape_single_site_enhanced(site, goal, keywords)
@@ -594,8 +611,8 @@ class EnhancedScholarshipScraper:
                     new_scholarships.extend(site_scholarships)
                     print(f"✅ Found {len(site_scholarships)} scholarships from {site}")
                 
-                # Respectful delay between sites
-                time.sleep(random.uniform(2, 5))
+                # ENHANCED: Shorter delays for background (was 2-5, now 1-3)
+                time.sleep(random.uniform(1, 3))
                 
             except Exception as e:
                 print(f"⚠️ Background scraping failed for {site}: {e}")
@@ -616,11 +633,12 @@ class EnhancedScholarshipScraper:
             } for sch in new_scholarships]
             
             self.cache.add_scholarships(formatted_scholarships)
-            print(f"🎉 Background update complete: {len(new_scholarships)} new scholarships added")
+            print(f"🎉 ENHANCED background update complete: {len(new_scholarships)} new scholarships added")
         
-        # Clean up old/expired scholarships
-        self.cache.cleanup_expired_scholarships()
-        print("🧹 Cleaned up expired scholarships")
+        # ENHANCED: More thorough cleanup
+        self.cache.cleanup_expired_scholarships(days_old=21)  # Remove older than 3 weeks
+        self.cache.remove_duplicate_scholarships()  # NEW: Remove duplicates
+        print("🧹 Enhanced cleanup: removed expired and duplicate scholarships")
 
     def _update_background_timestamp(self, country):
         """Update timestamp for last background update"""
@@ -845,4 +863,40 @@ class EnhancedScholarshipScraper:
         st.success(f"🎉 Aggressive search complete! Found {len(all_scholarships)} fresh scholarships")
         return all_scholarships
 
-    # ...existing code...
+    def update_session_headers(self):
+        """Update the session headers with a new random user agent and referrer."""
+        import random
+        from .config import USER_AGENTS, REFERRERS, BROWSER_HEADERS
+        self.current_user_agent = random.choice(USER_AGENTS)
+        headers = BROWSER_HEADERS.copy()
+        headers['User-Agent'] = self.current_user_agent
+        headers['Referer'] = random.choice(REFERRERS)
+        self.session.headers.update(headers)
+        # Optionally rotate cookies or clear session if needed
+        self.session_persistence['user_agent_rotations'] += 1
+    
+    def _rotate_user_agent(self):
+        """Rotate user agent for anti-bot protection"""
+        self.session_persistence['user_agent_rotations'] += 1
+        
+        # Rotate every 5-8 requests
+        if self.session_persistence['user_agent_rotations'] % random.randint(5, 8) == 0:
+            self.update_session_headers()
+    
+    def _apply_anti_bot_delay(self):
+        """Apply intelligent delays to avoid bot detection"""
+        
+        # Base delay between requests
+        base_delay = random.uniform(MIN_DELAY, MAX_DELAY)
+        
+        # Additional delay based on request frequency
+        if self.session_persistence['total_requests'] > 10:
+            frequency_delay = random.uniform(1, 3)
+            base_delay += frequency_delay
+        
+        # Random human-like pauses
+        if random.random() < 0.1:  # 10% chance of longer pause
+            base_delay += random.uniform(5, 10)
+        
+        time.sleep(base_delay)
+        self.session_persistence['total_requests'] += 1
