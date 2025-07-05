@@ -654,70 +654,195 @@ class EnhancedScholarshipScraper:
         except:
             return []
 
-    def _apply_intelligent_delay(self):
-        """Apply intelligent delays between requests"""
-        # Random delay between 1-3 seconds
-        delay = random.uniform(1.0, 3.0)
-        time.sleep(delay)
-
-    def _rotate_user_agent_if_needed(self):
-        """Rotate user agent if needed"""
-        if hasattr(self, 'session_persistence'):
-            self.session_persistence['user_agent_rotations'] += 1
-            if self.session_persistence['user_agent_rotations'] % 10 == 0:
-                self.current_user_agent = random.choice(USER_AGENTS)
-                self.update_session_headers()
-
-    def _make_protected_request(self, url):
-        """Make a protected request with anti-bot measures"""
+    def scrape_single_site(self, url, goal="student", country=None, max_scholarships=10):
+        """Immediately scrape a single website for scholarships"""
         try:
-            response = self.session.get(url, timeout=10)
-            return response
-        except:
-            return None
-
-    def _extract_scholarships_from_content(self, soup, source_url):
-        """Extract scholarships from webpage content"""
-        scholarships = []
-        
-        # Look for common scholarship patterns
-        scholarship_selectors = [
-            'div[class*="scholarship"]',
-            'div[class*="opportunity"]', 
-            'article',
-            'div[class*="post"]'
-        ]
-        
-        for selector in scholarship_selectors:
-            elements = soup.select(selector)
-            for element in elements[:5]:  # Limit results
-                title_elem = element.find(['h1', 'h2', 'h3', 'h4'])
-                if title_elem:
-                    title = title_elem.get_text(strip=True)
-                    description = element.get_text(strip=True)[:200]
-                    
-                    scholarships.append({
-                        'title': title,
-                        'description': description,
-                        'amount': 'Check website',
-                        'deadline': 'Check website',
-                        'category': 'General',
-                        'source': source_url
-                    })
+            st.info(f"🕷️ Scraping {url}...")
             
-            if scholarships:  # If we found some, stop looking
+            # Validate URL
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            
+            # Apply anti-bot measures
+            self._apply_anti_bot_delay()
+            self._rotate_user_agent()
+            
+            # Get the page content
+            response = self.session.get(url, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            scholarships = []
+            
+            # Generic scholarship extraction patterns
+            scholarship_patterns = [
+                # Look for common scholarship indicators
+                {'tag': 'div', 'class_patterns': ['scholarship', 'opportunity', 'grant', 'funding']},
+                {'tag': 'article', 'class_patterns': ['post', 'entry', 'item']},
+                {'tag': 'li', 'class_patterns': ['scholarship', 'opportunity']},
+                {'tag': 'h2', 'text_patterns': ['scholarship', 'grant', 'award']},
+                {'tag': 'h3', 'text_patterns': ['scholarship', 'grant', 'award']},
+            ]
+            
+            for pattern in scholarship_patterns:
+                if len(scholarships) >= max_scholarships:
+                    break
+                    
+                elements = self._find_elements_by_pattern(soup, pattern)
+                for elem in elements[:5]:  # Limit per pattern
+                    try:
+                        scholarship = self._extract_scholarship_from_element(elem, url, goal, country)
+                        if scholarship and scholarship not in scholarships:
+                            scholarships.append(scholarship)
+                    except Exception:
+                        continue
+            
+            # Save to cache for future searches
+            if scholarships:
+                self.cache.add_scholarships([{
+                    'title': s['title'],
+                    'description': s['description'],
+                    'amount': s['amount'],
+                    'deadline': s['deadline'],
+                    'category': s['category'],
+                    'source': s['source'],
+                    'goal_type': goal,
+                    'country': country or 'International',
+                    'priority': 4  # High priority for fresh scraping
+                } for s in scholarships])
+            
+            st.success(f"✅ Successfully scraped {len(scholarships)} scholarships from {url}")
+            return scholarships
+            
+        except Exception as e:
+            st.error(f"❌ Failed to scrape {url}: {str(e)}")
+            return []
+    
+    def _find_elements_by_pattern(self, soup, pattern):
+        """Find elements matching scholarship patterns"""
+        elements = []
+        
+        if pattern['tag'] in ['div', 'article', 'li']:
+            # Search by class patterns
+            for class_pattern in pattern.get('class_patterns', []):
+                found = soup.find_all(pattern['tag'], class_=re.compile(class_pattern, re.I))
+                elements.extend(found)
+        
+        elif pattern['tag'] in ['h2', 'h3']:
+            # Search by text patterns in headings
+            for text_pattern in pattern.get('text_patterns', []):
+                found = soup.find_all(pattern['tag'], string=re.compile(text_pattern, re.I))
+                elements.extend(found)
+        
+        return elements[:10]  # Limit results
+    
+    def _extract_scholarship_from_element(self, element, source_url, goal, country):
+        """Extract scholarship data from a single element"""
+        
+        # Try to find title
+        title = ""
+        title_elem = element.find(['h1', 'h2', 'h3', 'h4', 'strong', 'b'])
+        if title_elem:
+            title = title_elem.get_text(strip=True)
+        elif element.name in ['h1', 'h2', 'h3', 'h4']:
+            title = element.get_text(strip=True)
+        else:
+            # Fallback: use first few words
+            text = element.get_text(strip=True)
+            title = ' '.join(text.split()[:8]) + "..." if len(text.split()) > 8 else text
+        
+        if not title or len(title) < 10:
+            return None
+        
+        # Extract description
+        description = element.get_text(strip=True)[:300] + "..." if len(element.get_text(strip=True)) > 300 else element.get_text(strip=True)
+        
+        # Try to extract amount (look for money patterns)
+        amount = "Amount not specified"
+        money_patterns = [r'\$[\d,]+', r'USD?\s*[\d,]+', r'€[\d,]+', r'£[\d,]+', r'UGX\s*[\d,]+']
+        for pattern in money_patterns:
+            match = re.search(pattern, description, re.I)
+            if match:
+                amount = match.group()
                 break
         
-        return scholarships
+        # Try to extract deadline
+        deadline = "Check website for deadline"
+        date_patterns = [
+            r'\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b',
+            r'\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b',
+            r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b'
+        ]
+        for pattern in date_patterns:
+            match = re.search(pattern, description, re.I)
+            if match:
+                deadline = match.group()
+                break
+        
+        # Determine category based on keywords
+        category = "General"
+        if any(word in description.lower() for word in ['engineering', 'technology', 'computer']):
+            category = "STEM"
+        elif any(word in description.lower() for word in ['business', 'mba', 'management']):
+            category = "Business"
+        elif any(word in description.lower() for word in ['medical', 'medicine', 'health']):
+            category = "Medical"
+        elif any(word in description.lower() for word in ['art', 'creative', 'design']):
+            category = "Arts"
+        
+        return {
+            'title': title,
+            'description': description,
+            'amount': amount,
+            'deadline': deadline,
+            'category': category,
+            'source': source_url,
+            'goal_type': goal,
+            'country': country or 'International'
+        }
 
-    def update_session_headers(self):
-        """Update session headers with realistic browser simulation"""
-        self.session.headers.update({
-            'User-Agent': self.current_user_agent,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0'
-        })
+    def perform_aggressive_search(self, goal="student", keywords=None, country=None, max_sites=5):
+        """Perform aggressive real-time scraping for immediate results"""
+        
+        st.info("🚀 Performing aggressive real-time scholarship search...")
+        
+        # Get target sites for aggressive scraping
+        target_sites = []
+        
+        # Add country-specific sites (prioritize)
+        if country and country in self.country_scholarship_sites:
+            target_sites.extend(self.country_scholarship_sites[country][:3])
+        
+        # Add international sites
+        international_sites = [
+            'https://www.scholars4dev.com/',
+            'https://www.opportunitiesforafricans.com/',
+            'https://www.afterschoolafrica.com/scholarships/'
+        ]
+        target_sites.extend(international_sites[:max_sites - len(target_sites)])
+        
+        all_scholarships = []
+        
+        for i, site in enumerate(target_sites[:max_sites]):
+            try:
+                st.info(f"🕷️ Scraping site {i+1}/{len(target_sites[:max_sites])}: {site}")
+                
+                site_scholarships = self.scrape_single_site(site, goal, country, max_scholarships=5)
+                all_scholarships.extend(site_scholarships)
+                
+                # Show progress
+                if site_scholarships:
+                    st.success(f"✅ Found {len(site_scholarships)} scholarships from {site}")
+                
+                # Anti-bot delay between sites
+                if i < len(target_sites) - 1:
+                    time.sleep(random.uniform(2, 4))
+                    
+            except Exception as e:
+                st.warning(f"⚠️ Could not scrape {site}: {str(e)}")
+                continue
+        
+        st.success(f"🎉 Aggressive search complete! Found {len(all_scholarships)} fresh scholarships")
+        return all_scholarships
+
+    # ...existing code...
