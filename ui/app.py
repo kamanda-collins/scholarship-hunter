@@ -347,24 +347,29 @@ if st.session_state.scraped_data:
         else '🔥', axis=1
     )
     
-    # Add clickable row selection
-    st.write("**Tap a row to select for application generation:**")
-    st.caption("🔥🔥🔥 = Country-specific, 🔥🔥 = Regional, 🔥 = International")
-    
     # Display the enhanced table
-    event = st.dataframe(
+    st.dataframe(
         display_df,
         use_container_width=True,
-        hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row"
+        hide_index=True
     )
     
-    # Handle row selection
-    if event.selection.rows:
-        selected_idx = event.selection.rows[0]
-        st.session_state.selected_opportunity = st.session_state.scraped_data[selected_idx]
-        st.success(f"✅ Selected: **{st.session_state.selected_opportunity['title']}**")
+    # Row selection using selectbox (compatible with all Streamlit versions)
+    st.write("**Select an opportunity for application generation:**")
+    opportunity_titles = [f"{i+1}. {opp['title']}" for i, opp in enumerate(st.session_state.scraped_data)]
+    
+    if opportunity_titles:
+        selected_title = st.selectbox(
+            "Choose scholarship:",
+            options=opportunity_titles,
+            key="opportunity_selector"
+        )
+        
+        if selected_title:
+            # Extract index from selection
+            selected_idx = int(selected_title.split('.')[0]) - 1
+            st.session_state.selected_opportunity = st.session_state.scraped_data[selected_idx]
+            st.success(f"✅ Selected: **{st.session_state.selected_opportunity['title']}**")
     
     # Detailed view for selected opportunity
     if 'selected_opportunity' in st.session_state:
