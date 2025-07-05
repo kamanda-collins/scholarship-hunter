@@ -1,21 +1,21 @@
-# 🎓 Scholarship Hunter - AI-Powered Scholarship Discovery Platform
+# 🎓 Scholarship Hunter - Global AI-Powered Scholarship Discovery Platform
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://scholarship-hunter.streamlit.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **Lightning-fast scholarship discovery with AI-powered applications and intelligent caching**
+> **Lightning-fast global scholarship discovery with AI-powered applications and intelligent caching**
 
 ## 🚀 Features
 
 ### ⚡ **Instant Search Results**
 - **<1 second** search performance with intelligent caching
-- **15 pre-loaded scholarships** with strong Uganda focus
+- **50+ pre-loaded scholarships** from multiple countries
 - **Cache-first approach** with backup scraping
 
-### 🌍 **Country-Aware Intelligence** 
-- **Uganda-specific scholarships** (33% local coverage)
-- **Country-specific GPA scales** (4.0, 5.0, percentage)
-- **Localized requirements** and application guidance
+### 🌍 **Global Coverage & Intelligence** 
+- **Multi-country support** (20+ countries including USA, Canada, UK, Australia, Germany, Uganda, Kenya, Nigeria, India, Bangladesh, Pakistan, and more)
+- **Flexible GPA systems** (4.0, 5.0, 10.0, percentage scales)
+- **Country-aware recommendations** and application guidance
 
 ### 🤖 **AI-Powered Applications**
 - **Smart application letter generation** using Google Gemini
@@ -114,16 +114,30 @@ CMD ["streamlit", "run", "ui/app.py", "--server.port=8501", "--server.address=0.
 
 - **Search Speed:** <1 second (95% faster than traditional scraping)
 - **Cache Hit Rate:** 90%+ for common searches
-- **Uganda Coverage:** 5 specific + international scholarships
-- **User Experience:** Mobile-optimized with instant results
+- **Global Coverage:** 50+ scholarships from multiple countries and international organizations
+- **User Experience:** Mobile-optimized with instant results across all devices
 
-## 🎯 Uganda-Specific Scholarships
+## � Featured Scholarship Categories
 
-1. **Makerere University Excellence Scholarship** - Engineering/Medicine
-2. **Uganda National Merit Scholarship** - Various fields
-3. **MasterCard Foundation Scholars Program Uganda** - Leadership
-4. **Uganda Women in STEM Scholarship** - Science/Technology  
-5. **Uganda Community Development Scholarship** - Social Impact
+### **By Region:**
+1. **North America** - USA, Canada scholarship opportunities
+2. **Europe** - UK, Germany, Netherlands, Sweden programs
+3. **Asia-Pacific** - Australia, Singapore, Japan, South Korea
+4. **Africa** - Uganda, Kenya, Nigeria, South Africa
+5. **Global** - International organizations and multi-country programs
+
+### **By Level:**
+- **Undergraduate** - Bachelor's degree funding
+- **Graduate** - Master's and PhD scholarships
+- **Research** - Academic and industry research grants
+- **Professional** - Career development and training programs
+
+### **By Field:**
+- **STEM** - Science, Technology, Engineering, Mathematics
+- **Business** - MBA, entrepreneurship, leadership
+- **Arts & Humanities** - Creative arts, social sciences
+- **Medicine** - Healthcare, medical research
+- **Social Impact** - Development, sustainability, non-profit
 
 ## 🔧 Configuration
 
@@ -133,8 +147,9 @@ CMD ["streamlit", "run", "ui/app.py", "--server.port=8501", "--server.address=0.
 
 ### **Customization**
 - Add custom scholarship sites in the UI
-- Modify GPA scales in `core/country_config.py`
-- Update scraping targets in `core/scraping.py`
+- Modify GPA scales and country support in `core/country_config.py`
+- Update scraping targets for specific regions in `core/scraping.py`
+- Customize AI prompts for different educational systems
 
 ## 🤝 Contributing
 
@@ -152,7 +167,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Streamlit** for the amazing framework
 - **Google Gemini** for AI capabilities
-- **Uganda scholarship providers** for opportunities
+- **Global scholarship providers** for creating opportunities worldwide
+- **International student communities** for feedback and support
 - **Open source community** for tools and libraries
 
 ## 📞 Support
@@ -163,4 +179,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for students worldwide, with special focus on Uganda 🇺🇬**
+**Made with ❤️ for students worldwide - helping dreams come true through education ��**

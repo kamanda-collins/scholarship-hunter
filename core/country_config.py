@@ -153,6 +153,70 @@ COUNTRY_CONFIG = {
         'grading_system': 'A/B/C/D/E grading system',
         'common_scholarships': ['Government Scholarships', 'International Scholarships']
     },
+    'Bangladesh': {
+        'gpa_scale': {'min': 0.0, 'max': 5.0, 'step': 0.1},
+        'gpa_help': 'Bangladeshi CGPA scale (0.0-5.0)',
+        'education_terms': ['HSC', 'Bachelor\'s Degree', 'Master\'s Degree', 'PhD'],
+        'phone_format': '+880 XXXX XXXXXX',
+        'grading_system': 'A+/A/A-/B+/B/B-/C+/C/D/F',
+        'common_scholarships': ['Government Scholarships', 'International Scholarships']
+    },
+    'Pakistan': {
+        'gpa_scale': {'min': 0.0, 'max': 4.0, 'step': 0.1},
+        'gpa_help': 'Pakistani GPA scale (0.0-4.0) or percentage',
+        'education_terms': ['Intermediate', 'Bachelor\'s Degree', 'Master\'s Degree', 'PhD'],
+        'phone_format': '+92 XXX XXXXXXX',
+        'grading_system': 'A+/A/B+/B/C+/C/D/F',
+        'common_scholarships': ['HEC Scholarships', 'International Programs']
+    },
+    'Indonesia': {
+        'gpa_scale': {'min': 0.0, 'max': 4.0, 'step': 0.1},
+        'gpa_help': 'Indonesian GPA scale (0.0-4.0)',
+        'education_terms': ['SMA', 'Sarjana (S1)', 'Magister (S2)', 'Doktor (S3)'],
+        'phone_format': '+62 XXX XXXX XXXX',
+        'grading_system': 'A/B+/B/C+/C/D+/D/E',
+        'common_scholarships': ['LPDP', 'Beasiswa Indonesia']
+    },
+    'Philippines': {
+        'gpa_scale': {'min': 1.0, 'max': 5.0, 'step': 0.1},
+        'gpa_help': 'Philippine GPA scale (1.0-5.0, 1.0 = best)',
+        'education_terms': ['Senior High School', 'Bachelor\'s Degree', 'Master\'s Degree', 'PhD'],
+        'phone_format': '+63 XXX XXX XXXX',
+        'grading_system': '1.00-5.00 scale (1.00 = highest)',
+        'common_scholarships': ['CHED Scholarships', 'DOST Scholarships']
+    },
+    'Mexico': {
+        'gpa_scale': {'min': 0.0, 'max': 10.0, 'step': 0.1},
+        'gpa_help': 'Mexican grading scale (0.0-10.0)',
+        'education_terms': ['Bachillerato', 'Licenciatura', 'Maestría', 'Doctorado'],
+        'phone_format': '+52 XXX XXX XXXX',
+        'grading_system': '10-point scale (10 = excellent)',
+        'common_scholarships': ['CONACYT', 'Becas Benito Juárez']
+    },
+    'Egypt': {
+        'gpa_scale': {'min': 0.0, 'max': 4.0, 'step': 0.1},
+        'gpa_help': 'Egyptian GPA scale (0.0-4.0) or percentage',
+        'education_terms': ['Thanawiya Amma', 'Bachelor\'s Degree', 'Master\'s Degree', 'PhD'],
+        'phone_format': '+20 XXX XXX XXXX',
+        'grading_system': 'Excellent/Very Good/Good/Pass/Fail',
+        'common_scholarships': ['Government Scholarships', 'International Programs']
+    },
+    'Turkey': {
+        'gpa_scale': {'min': 0.0, 'max': 4.0, 'step': 0.1},
+        'gpa_help': 'Turkish GPA scale (0.0-4.0)',
+        'education_terms': ['Lise', 'Lisans', 'Yüksek Lisans', 'Doktora'],
+        'phone_format': '+90 XXX XXX XXXX',
+        'grading_system': 'AA/BA/BB/CB/CC/DC/DD/FD/FF',
+        'common_scholarships': ['Türkiye Bursları', 'University Scholarships']
+    },
+    'Vietnam': {
+        'gpa_scale': {'min': 0.0, 'max': 10.0, 'step': 0.1},
+        'gpa_help': 'Vietnamese grading scale (0.0-10.0)',
+        'education_terms': ['Tốt nghiệp THPT', 'Cử nhân', 'Thạc sĩ', 'Tiến sĩ'],
+        'phone_format': '+84 XXX XXX XXXX',
+        'grading_system': '10-point scale (10 = excellent)',
+        'common_scholarships': ['Government Scholarships', 'VIED Programs']
+    },
     'Other': {
         'gpa_scale': {'min': 0.0, 'max': 4.0, 'step': 0.1},
         'gpa_help': 'Please convert to 4.0 scale or enter as percentage',
