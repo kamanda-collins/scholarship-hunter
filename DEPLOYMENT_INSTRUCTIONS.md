@@ -55,7 +55,7 @@ api_key = "your_gemini_api_key_here"
 Your app will be available at:
 `https://YOUR_USERNAME-scholarship-hunter-uiapp-XXXXX.streamlit.app`
 
-## 🚄 Railway Deployment (Backup)
+## 🚄 Railway Deployment (Recommended)
 
 ### **1. Deploy to Railway**
 1. Visit [railway.app](https://railway.app)
@@ -64,14 +64,19 @@ Your app will be available at:
 4. Select your repository
 5. Railway will automatically detect and deploy
 
-### **2. Environment Variables**
+### **2. Add Your API Key**
 In Railway dashboard:
-1. Go to Variables
-2. Add: `GEMINI_API_KEY` = `your_api_key` (optional)
+1. Go to "Variables" tab
+2. Click "New Variable"
+3. Name: `GEMINI_API_KEY`
+4. Value: `your_actual_gemini_api_key`
+5. Click "Add"
 
-### **3. Custom Domain**
+### **3. Your Live App**
 Railway will provide a URL like:
 `https://scholarship-hunter-production-XXXX.up.railway.app`
+
+**✅ Your app will have full AI features enabled with your API key!**
 
 ## 📱 Testing Deployment
 

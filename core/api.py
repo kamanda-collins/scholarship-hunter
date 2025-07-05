@@ -12,9 +12,13 @@ class APIManager:
         import streamlit as st
         # Prefer Streamlit secrets, fallback to env var, handle missing secrets gracefully
         try:
-            self.server_api_key = server_api_key or (st.secrets["gemini"]["api_key"] if "gemini" in st.secrets else None) or os.getenv("GEMINI_API_KEY")
+            # Check if we're in Streamlit context and secrets exist
+            if hasattr(st, 'secrets') and 'gemini' in st.secrets:
+                self.server_api_key = server_api_key or st.secrets["gemini"]["api_key"] or os.getenv("GEMINI_API_KEY")
+            else:
+                self.server_api_key = server_api_key or os.getenv("GEMINI_API_KEY")
         except Exception:
-            # Handle case where secrets file doesn't exist
+            # Silently handle case where secrets don't exist or are inaccessible
             self.server_api_key = server_api_key or os.getenv("GEMINI_API_KEY")
         self.usage_file = USAGE_FILE
         self.user_keys_file = "cache/user_api_keys.json"
